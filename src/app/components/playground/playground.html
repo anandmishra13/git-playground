@@ -68,18 +68,15 @@
 
     <div class="playground-area">
       <div class="playground-controls">
-        <button
-          class="run-btn"
-          [class.active]="!showAfter()"
-          (click)="resetCommand()">
-          Before
-        </button>
-        <button
-          class="run-btn primary"
-          [class.active]="showAfter()"
-          (click)="runCommand()">
-          &#9654; Run Command
-        </button>
+        @if (showAfter()) {
+          <button class="run-btn active" (click)="resetCommand()">
+            &larr; Back to Before
+          </button>
+        } @else {
+          <button class="run-btn primary" (click)="runCommand()">
+            &#9654; Run Command
+          </button>
+        }
       </div>
 
       <app-visual-area

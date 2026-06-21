@@ -22,12 +22,17 @@
   @if (showAfter && terminal.length > 0) {
     <div class="panel terminal-panel">
       <div class="panel-header terminal-header">
-        <div class="terminal-dots">
-          <span class="dot red"></span>
-          <span class="dot yellow"></span>
-          <span class="dot green"></span>
+        <div class="terminal-left">
+          <div class="terminal-dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+          <span class="panel-title">Terminal</span>
         </div>
-        <span class="panel-title">Terminal</span>
+        @if (done) {
+          <button class="replay-btn" (click)="replay()">&#8635; Replay</button>
+        }
       </div>
       <div class="terminal-body" #terminalBody>
         @for (line of renderedLines; track $index) {

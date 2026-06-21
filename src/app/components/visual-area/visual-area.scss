@@ -106,9 +106,34 @@
 .terminal-header {
   background: #181825;
   border-bottom-color: #313244;
+  justify-content: space-between;
+
+  .terminal-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
   .panel-title {
     color: #6c7086;
+  }
+}
+
+.replay-btn {
+  background: none;
+  border: 1px solid #313244;
+  border-radius: 4px;
+  color: #6c7086;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    color: var(--text-terminal-green);
+    border-color: var(--text-terminal-green);
   }
 }
 

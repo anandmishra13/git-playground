@@ -23,6 +23,7 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
   terminal: string[] = [];
   renderedLines: RenderedLine[] = [];
   typing = false;
+  done = false;
   graph: GraphState | null = null;
   private needsRedraw = false;
   private typeTimer: any = null;
@@ -67,6 +68,7 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
       this.lineIdx = 0;
       this.charIdx = 0;
       this.typing = true;
+      this.done = false;
       this.scheduleNext();
       this.graph = this.command.afterGraph || this.command.gitGraph || null;
     } else {
@@ -74,14 +76,26 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
       this.terminal = [];
       this.renderedLines = [];
       this.typing = false;
+      this.done = false;
       this.graph = this.command.gitGraph || null;
     }
     this.graphProgress = 0;
   }
 
+  replay() {
+    this.stopTyping();
+    this.renderedLines = [];
+    this.lineIdx = 0;
+    this.charIdx = 0;
+    this.typing = true;
+    this.done = false;
+    this.scheduleNext();
+  }
+
   private scheduleNext() {
     if (this.lineIdx >= this.terminal.length) {
       this.typing = false;
+      this.done = true;
       return;
     }
 

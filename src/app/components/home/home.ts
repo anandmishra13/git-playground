@@ -33,7 +33,16 @@ interface Star {
   brightness: number;
   phase: number;
   drift: number;
+  symbol: string;
+  rotation: number;
+  rotationSpeed: number;
 }
+
+const CODE_SYMBOLS = [
+  '{', '}', '<', '>', '//', '/*', '*/', ';', '=>', '()', '[]',
+  '&&', '||', '!=', '===', '...', '$ _', '#!', 'fn', 'if',
+  'git', '>>>', '<<<', '~~~', '+++', '---', '@@',
+];
 
 const PALETTE = ['#e07a5f', '#81b29a', '#f2cc8f', '#5b8fb9', '#9b8fb4', '#e63946'];
 
@@ -106,6 +115,9 @@ export class Home implements AfterViewInit, OnDestroy {
         brightness: Math.random(),
         phase: Math.random() * Math.PI * 2,
         drift: (Math.random() - 0.5) * 0.15,
+        symbol: CODE_SYMBOLS[Math.floor(Math.random() * CODE_SYMBOLS.length)],
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.003,
       });
     }
   }
@@ -285,22 +297,37 @@ export class Home implements AfterViewInit, OnDestroy {
     const t = this.frameCount * 0.02;
     for (const s of this.stars) {
       const twinkle = 0.3 + 0.7 * ((Math.sin(t * s.speed * 3 + s.phase) + 1) / 2);
-      const alpha = (isDark ? 0.6 : 0.18) * twinkle;
       s.y -= s.speed;
       s.x += s.drift;
-      if (s.y < -5) { s.y = this.h + 5; s.x = Math.random() * this.w; }
-      if (s.x < -5) s.x = this.w + 5;
-      if (s.x > this.w + 5) s.x = -5;
-      const starColor = isDark ? '255, 255, 255' : '120, 100, 80';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(' + starColor + ', ' + alpha + ')';
-      ctx.fill();
-      if (s.size > 1.3 && twinkle > 0.7) {
+      s.rotation += s.rotationSpeed;
+      if (s.y < -20) { s.y = this.h + 20; s.x = Math.random() * this.w; }
+      if (s.x < -20) s.x = this.w + 20;
+      if (s.x > this.w + 20) s.x = -20;
+
+      if (isDark) {
+        const alpha = 0.6 * twinkle;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(' + starColor + ', ' + (alpha * 0.15) + ')';
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha + ')';
         ctx.fill();
+        if (s.size > 1.3 && twinkle > 0.7) {
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.size * 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.15) + ')';
+          ctx.fill();
+        }
+      } else {
+        const alpha = 0.08 + 0.07 * twinkle;
+        const fontSize = 10 + s.size * 4;
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.rotation);
+        ctx.font = '500 ' + fontSize + "px 'JetBrains Mono', monospace";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(80, 60, 40, ' + alpha + ')';
+        ctx.fillText(s.symbol, 0, 0);
+        ctx.restore();
       }
     }
 

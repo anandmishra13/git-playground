@@ -32,7 +32,8 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --pill-bg: #fff8f0;
-  --star-color: rgba(120, 100, 80, 0.15);
+  --star-color: rgba(80, 60, 40, 0.35);
+  --star-overlay-opacity: 0;
 }
 
 [data-theme="dark"] {
@@ -59,6 +60,7 @@
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
   --pill-bg: #242434;
   --star-color: rgba(255, 255, 255, 0.45);
+  --star-overlay-opacity: 1;
 }
 
 * {

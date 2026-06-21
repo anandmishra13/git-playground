@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  web:
+    # 1. Build context and file
+    build:
+      context: .
+      dockerfile: dockerfile.dev
+
+    # 2. Port mapping (host:container)
+    ports:
+      - "4200:4200"
+
+    # 3. Synchronize local files and protect node_modules
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+    # 4. Environment variables
+    environment:
+      - NODE_ENV=development

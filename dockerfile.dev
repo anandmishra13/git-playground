@@ -1,0 +1,20 @@
+# 1. Use the official lightweight Node.js image as our foundation
+FROM node:22-alpine
+
+# 2. Set the working directory inside the container
+WORKDIR /app
+
+# 3. Copy package configuration files first (helps cache npm install speed)
+COPY package*.json ./
+
+# 4. Install dependencies inside the container
+RUN npm install
+
+# 5. Copy the rest of the application files
+COPY . .
+
+# 6. Expose the port Angular runs on
+EXPOSE 4200
+
+# 7. Start Angular dev server and enable polling so file updates sync correctly
+CMD ["npm", "start", "--", "--host", "0.0.0.0", "--poll", "2000"]

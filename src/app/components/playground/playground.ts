@@ -3,10 +3,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { COMMAND_CATEGORIES, GitCommand, CommandCategory } from '../../data/git-commands';
 import { VisualArea } from '../visual-area/visual-area';
 import { CommandPanel } from '../command-panel/command-panel';
+import { ThemeToggle } from '../theme-toggle/theme-toggle';
 
 @Component({
   selector: 'app-playground',
-  imports: [VisualArea, CommandPanel],
+  imports: [VisualArea, CommandPanel, ThemeToggle],
   templateUrl: './playground.html',
   styleUrl: './playground.scss',
 })

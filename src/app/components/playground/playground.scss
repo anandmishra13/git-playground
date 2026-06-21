@@ -198,6 +198,12 @@
     color: var(--accent);
   }
 
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
   .topbar-nav {
     display: flex;
     gap: 8px;

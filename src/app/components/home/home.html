@@ -1,43 +1,10 @@
 <div class="home">
-  <header class="hero">
-    <div class="hero-badge">Interactive Learning</div>
-    <h1>
-      <span class="hero-git">git</span> playground
-    </h1>
-    <p class="hero-sub">
-      Stop reading docs. Click a command and see what actually happens.
-    </p>
-    <div class="hero-stats">
-      <div class="stat">
-        <span class="stat-num">{{ categories.length }}</span>
-        <span class="stat-label">Categories</span>
-      </div>
-      <div class="stat-divider"></div>
-      <div class="stat">
-        <span class="stat-num">{{ totalCommands }}</span>
-        <span class="stat-label">Commands</span>
-      </div>
-    </div>
-  </header>
-
-  <section class="categories">
-    <h2 class="section-title">Pick a category</h2>
-    <div class="category-grid">
-      @for (category of categories; track category.name; let i = $index) {
-        <button class="category-card" (click)="openCategory(i)">
-          <span class="category-icon-badge">{{ category.icon }}</span>
-          <h3>{{ category.name }}</h3>
-          <p>{{ category.description }}</p>
-          <div class="category-footer">
-            <span class="cmd-count">{{ category.commands.length }} commands</span>
-            <span class="arrow">&rarr;</span>
-          </div>
-        </button>
-      }
-    </div>
-  </section>
-
-  <footer class="home-footer">
-    <p>Pick a category above to get started.</p>
-  </footer>
+  <canvas #graphCanvas class="graph-canvas"></canvas>
+  <div class="top-bar">
+    <app-theme-toggle />
+  </div>
+  <div class="overlay">
+    <h1><span class="git-text">git</span> playground</h1>
+    <p class="tagline">click any command to explore</p>
+  </div>
 </div>

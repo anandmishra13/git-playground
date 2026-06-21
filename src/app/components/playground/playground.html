@@ -1,5 +1,4 @@
 <div class="playground">
-  <!-- Sidebar -->
   <aside class="sidebar">
     <button class="back-btn" (click)="goHome()">
       <span class="back-arrow">&larr;</span>
@@ -31,22 +30,22 @@
     </nav>
   </aside>
 
-  <!-- Main Content -->
   <main class="main-content">
-    <!-- Top bar -->
     <div class="topbar">
       <div class="topbar-left">
         <span class="topbar-category"><span class="topbar-icon-badge">{{ category().icon }}</span> {{ category().name }}</span>
         <span class="topbar-sep">/</span>
         <span class="topbar-cmd">git {{ command().name }}</span>
       </div>
-      <div class="topbar-nav">
-        <button class="nav-arrow" [disabled]="!hasPrev" (click)="prevCommand()">&larr; Prev</button>
-        <button class="nav-arrow" [disabled]="!hasNext" (click)="nextCommand()">Next &rarr;</button>
+      <div class="topbar-actions">
+        <div class="topbar-nav">
+          <button class="nav-arrow" [disabled]="!hasPrev" (click)="prevCommand()">&larr; Prev</button>
+          <button class="nav-arrow" [disabled]="!hasNext" (click)="nextCommand()">Next &rarr;</button>
+        </div>
+        <app-theme-toggle />
       </div>
     </div>
 
-    <!-- Command header -->
     <div class="cmd-header">
       <div class="cmd-title-row">
         <h1>
@@ -60,7 +59,6 @@
       </div>
     </div>
 
-    <!-- Visual playground area -->
     <div class="playground-area">
       <div class="playground-controls">
         <button
@@ -83,7 +81,6 @@
     </div>
   </main>
 
-  <!-- Right panel: command list -->
   <app-command-panel
     [commands]="category().commands"
     [activeIndex]="commandIndex()"

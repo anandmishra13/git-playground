@@ -1,0 +1,59 @@
+<div class="visual-area">
+  <!-- File state viewer -->
+  <div class="panel files-panel">
+    <div class="panel-header">
+      <span class="panel-icon">&#128193;</span>
+      <span class="panel-title">{{ showAfter ? 'After' : 'Before' }}</span>
+    </div>
+    <div class="file-list">
+      @for (file of files; track file.name) {
+        <div class="file-item" [class]="getStatusClass(file.status)">
+          <div class="file-header">
+            <span class="file-status-badge" [class]="getStatusClass(file.status)">
+              {{ getStatusLabel(file.status) }}
+            </span>
+            <span class="file-name">{{ file.name }}</span>
+          </div>
+          <pre class="file-content"><code>{{ file.content }}</code></pre>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Terminal output -->
+  @if (showAfter && terminal.length > 0) {
+    <div class="panel terminal-panel">
+      <div class="panel-header terminal-header">
+        <div class="terminal-dots">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <span class="panel-title">Terminal</span>
+      </div>
+      <div class="terminal-body">
+        @for (line of terminal; track $index) {
+          <div class="terminal-line"
+               [class.comment]="isComment(line)"
+               [class.command]="isCommand(line)"
+               [class.empty]="line === ''">
+            {{ line }}
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Git graph -->
+  @if (graph && graph.nodes.length > 0) {
+    <div class="panel graph-panel">
+      <div class="panel-header">
+        <span class="panel-icon">&#128200;</span>
+        <span class="panel-title">{{ showAfter ? 'After' : 'Before' }} — Commit Graph</span>
+      </div>
+      <div class="graph-container">
+        <canvas #canvas class="graph-canvas"></canvas>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,91 @@
+<div class="playground">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <button class="back-btn" (click)="goHome()">
+      <span class="back-arrow">&larr;</span>
+      <span>Home</span>
+    </button>
+
+    <nav class="sidebar-nav">
+      @for (cat of categories; track cat.name; let ci = $index) {
+        <div class="nav-category" [class.active]="ci === categoryIndex()">
+          <button class="nav-category-btn" (click)="selectCategory(ci)">
+            <span class="nav-icon-badge">{{ cat.icon }}</span>
+            <span>{{ cat.name }}</span>
+          </button>
+          @if (ci === categoryIndex()) {
+            <div class="nav-commands">
+              @for (cmd of cat.commands; track cmd.name; let cmi = $index) {
+                <button
+                  class="nav-cmd"
+                  [class.active]="cmi === commandIndex()"
+                  (click)="selectCommand(cmi)">
+                  <span class="nav-cmd-dot"></span>
+                  git {{ cmd.name }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-category"><span class="topbar-icon-badge">{{ category().icon }}</span> {{ category().name }}</span>
+        <span class="topbar-sep">/</span>
+        <span class="topbar-cmd">git {{ command().name }}</span>
+      </div>
+      <div class="topbar-nav">
+        <button class="nav-arrow" [disabled]="!hasPrev" (click)="prevCommand()">&larr; Prev</button>
+        <button class="nav-arrow" [disabled]="!hasNext" (click)="nextCommand()">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- Command header -->
+    <div class="cmd-header">
+      <div class="cmd-title-row">
+        <h1>
+          <code>{{ command().command }}</code>
+        </h1>
+      </div>
+      <p class="cmd-desc">{{ command().description }}</p>
+      <div class="cmd-explanation">
+        <div class="explanation-label">What it does</div>
+        <p>{{ command().whatItDoes }}</p>
+      </div>
+    </div>
+
+    <!-- Visual playground area -->
+    <div class="playground-area">
+      <div class="playground-controls">
+        <button
+          class="run-btn"
+          [class.active]="!showAfter()"
+          (click)="resetCommand()">
+          Before
+        </button>
+        <button
+          class="run-btn primary"
+          [class.active]="showAfter()"
+          (click)="runCommand()">
+          Run Command &rarr;
+        </button>
+      </div>
+
+      <app-visual-area
+        [command]="command()"
+        [showAfter]="showAfter()" />
+    </div>
+  </main>
+
+  <!-- Right panel: command list -->
+  <app-command-panel
+    [commands]="category().commands"
+    [activeIndex]="commandIndex()"
+    (commandSelected)="selectCommand($event)" />
+</div>

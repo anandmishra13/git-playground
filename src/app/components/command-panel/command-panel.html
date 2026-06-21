@@ -1,0 +1,16 @@
+<aside class="command-panel">
+  <div class="panel-header">
+    <span class="panel-title">Commands</span>
+  </div>
+  <div class="command-list">
+    @for (cmd of commands; track cmd.name; let i = $index) {
+      <button
+        class="command-item"
+        [class.active]="i === activeIndex"
+        (click)="select(i)">
+        <div class="cmd-name">git {{ cmd.name }}</div>
+        <div class="cmd-brief">{{ cmd.description }}</div>
+      </button>
+    }
+  </div>
+</aside>

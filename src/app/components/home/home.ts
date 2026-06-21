@@ -304,6 +304,19 @@ export class Home implements AfterViewInit, OnDestroy {
       if (s.x < -20) s.x = this.w + 20;
       if (s.x > this.w + 20) s.x = -20;
 
+      let tooClose = false;
+      const clearance = isDark ? 0 : 60;
+      if (clearance > 0) {
+        for (const n of this.nodes) {
+          const dx = s.x - n.x;
+          const dy = s.y - n.y;
+          if (dx * dx + dy * dy < (n.radius + clearance) * (n.radius + clearance)) {
+            tooClose = true;
+            break;
+          }
+        }
+      }
+
       if (isDark) {
         const alpha = 0.6 * twinkle;
         ctx.beginPath();
@@ -316,7 +329,7 @@ export class Home implements AfterViewInit, OnDestroy {
           ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.15) + ')';
           ctx.fill();
         }
-      } else {
+      } else if (!tooClose) {
         const alpha = 0.08 + 0.07 * twinkle;
         const fontSize = 10 + s.size * 4;
         ctx.save();

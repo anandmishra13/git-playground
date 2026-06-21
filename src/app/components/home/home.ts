@@ -1,4 +1,5 @@
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, NgZone, ChangeDetectorRef, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { METRO_LINES, METRO_STATIONS, MetroStation, MetroLine, getLineColor } from '../../data/metro-map';
 import { COMMAND_CATEGORIES } from '../../data/git-commands';
@@ -7,7 +8,7 @@ import { ThemeToggle } from '../theme-toggle/theme-toggle';
 
 @Component({
   selector: 'app-home',
-  imports: [ThemeToggle],
+  imports: [ThemeToggle, FormsModule],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
@@ -19,6 +20,16 @@ export class Home implements AfterViewInit, OnDestroy {
   stations = METRO_STATIONS;
   hoveredStation: MetroStation | null = null;
   legendLines = METRO_LINES;
+  searchQuery = '';
+
+  onSearchChange() {
+    this.cdr.detectChanges();
+  }
+
+  clearSearch() {
+    this.searchQuery = '';
+    this.cdr.detectChanges();
+  }
 
   private animId = 0;
   private canvas!: HTMLCanvasElement;
@@ -286,6 +297,9 @@ export class Home implements AfterViewInit, OnDestroy {
   }
 
   private drawLines(ctx: CanvasRenderingContext2D, z: number) {
+    const query = (this.searchQuery || '').trim().toLowerCase();
+    const hasQuery = query.length > 0;
+
     for (const line of this.lines) {
       const stationObjs = line.stations
         .map(sid => this.stations.find(s => s.id === sid))
@@ -293,6 +307,20 @@ export class Home implements AfterViewInit, OnDestroy {
 
       if (stationObjs.length < 2) continue;
 
+      let alpha = 1.0;
+      if (hasQuery) {
+        const lineHasMatch = stationObjs.some(s => 
+          (s.name || '').toLowerCase().includes(query) ||
+          (s.command || '').toLowerCase().includes(query) ||
+          (s.description || '').toLowerCase().includes(query)
+        );
+        if (!lineHasMatch) {
+          alpha = 0.15;
+        }
+      }
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
       ctx.beginPath();
       ctx.strokeStyle = line.color;
       ctx.lineWidth = 5 / z;
@@ -317,6 +345,7 @@ export class Home implements AfterViewInit, OnDestroy {
         }
       }
       ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -326,13 +355,38 @@ export class Home implements AfterViewInit, OnDestroy {
     const textColor = isDark ? '#e2ddd5' : '#3d2c1e';
     const mutedColor = isDark ? '#6e665c' : '#9a8572';
 
+    const query = (this.searchQuery || '').trim().toLowerCase();
+    const hasQuery = query.length > 0;
+
     for (const station of this.stations) {
       const isHovered = this.hoveredStation === station;
+      const isMatch = hasQuery && (
+        (station.name || '').toLowerCase().includes(query) ||
+        (station.command || '').toLowerCase().includes(query) ||
+        (station.description || '').toLowerCase().includes(query)
+      );
+
       const lineColor = getLineColor(station.lineIds[0]);
       const r = station.major ? 8 : 5;
       const pulse = station.major ? Math.sin(this.pulsePhase + station.x * 0.01) * 0.15 + 1 : 1;
 
-      if (isHovered) {
+      let alpha = 1.0;
+      if (hasQuery) {
+        alpha = isMatch ? 1.0 : 0.15;
+      }
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      if (isMatch) {
+        ctx.beginPath();
+        ctx.arc(station.x, station.y, (r + 10) * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = lineColor + '33';
+        ctx.fill();
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2 / z;
+        ctx.stroke();
+      } else if (isHovered) {
         ctx.beginPath();
         ctx.arc(station.x, station.y, (r + 8) * pulse, 0, Math.PI * 2);
         ctx.fillStyle = lineColor + '22';
@@ -343,13 +397,13 @@ export class Home implements AfterViewInit, OnDestroy {
       ctx.arc(station.x, station.y, r * pulse + 2, 0, Math.PI * 2);
       ctx.fillStyle = bgColor;
       ctx.fill();
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = (station.major ? 3 : 2) / z;
+      ctx.strokeStyle = isMatch ? (isDark ? '#ffffff' : '#3d2c1e') : lineColor;
+      ctx.lineWidth = (isMatch ? 4.5 : (station.major ? 3 : 2)) / z;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.arc(station.x, station.y, (r - 2) * pulse, 0, Math.PI * 2);
-      ctx.fillStyle = isHovered ? lineColor : (station.major ? lineColor : lineColor + '88');
+      ctx.fillStyle = (isHovered || isMatch) ? lineColor : (station.major ? lineColor : lineColor + '88');
       ctx.fill();
 
       if (station.lineIds.length > 1) {
@@ -362,13 +416,13 @@ export class Home implements AfterViewInit, OnDestroy {
         ctx.setLineDash([]);
       }
 
-      const showLabel = z > 0.5 || station.major;
+      const showLabel = z > 0.5 || station.major || isMatch;
       if (showLabel) {
         const fontSize = Math.max(9, Math.min(12, 11 / z));
-        ctx.font = (station.major ? '600 ' : '400 ') + fontSize + "px 'JetBrains Mono', monospace";
+        ctx.font = ((station.major || isMatch) ? '600 ' : '400 ') + fontSize + "px 'JetBrains Mono', monospace";
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = isHovered ? lineColor : (station.major ? textColor : mutedColor);
+        ctx.fillStyle = isMatch ? lineColor : (isHovered ? lineColor : (station.major ? textColor : mutedColor));
         ctx.fillText(station.name, station.x, station.y + r + 8);
       }
 
@@ -377,6 +431,7 @@ export class Home implements AfterViewInit, OnDestroy {
         ctx.fillStyle = mutedColor;
         ctx.fillText(station.description, station.x, station.y + r + 24);
       }
+      ctx.restore();
     }
   }
 

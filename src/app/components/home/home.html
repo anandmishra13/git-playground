@@ -5,6 +5,19 @@
     <div class="top-left">
       <h1 class="logo"><span class="git-text">git</span> playground</h1>
     </div>
+    <div class="top-center">
+      <div class="map-search">
+        <input 
+          type="text" 
+          placeholder="Search commands (e.g. init, commit, stash)..." 
+          [(ngModel)]="searchQuery"
+          (input)="onSearchChange()"
+          class="map-search-input" />
+        @if (searchQuery) {
+          <button class="clear-search-btn" (click)="clearSearch()">&#x2715;</button>
+        }
+      </div>
+    </div>
     <div class="top-right">
       <app-theme-toggle />
     </div>

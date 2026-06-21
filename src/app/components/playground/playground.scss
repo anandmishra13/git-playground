@@ -71,6 +71,39 @@
   }
 }
 
+.progress-bar {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .progress-track {
+    height: 4px;
+    background: var(--border-light);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+}
+
 .sidebar-nav {
   flex: 1;
 }
@@ -167,6 +200,16 @@
     color: var(--accent);
     font-weight: 600;
     .nav-cmd-dot { background: var(--accent); transform: scale(1.3); }
+  }
+
+  &.explored {
+    color: var(--green);
+  }
+
+  .nav-cmd-check {
+    font-size: 10px;
+    color: var(--green);
+    flex-shrink: 0;
   }
 }
 
@@ -265,53 +308,27 @@
 }
 
 .cmd-header {
-  padding: 28px 24px 20px;
+  padding: 20px 24px 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
 
-  .cmd-title-row {
-    margin-bottom: 8px;
-
-    h1 {
-      font-size: 14px;
-
-      code {
-        font-family: var(--font-mono);
-        font-size: 22px;
-        font-weight: 700;
-        color: var(--text-primary);
-        background: var(--accent-light);
-        padding: 6px 14px;
-        border-radius: var(--radius-sm);
-      }
-    }
+  .cmd-code {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--accent-light);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
   }
 
   .cmd-desc {
-    font-size: 16px;
-    color: var(--text-secondary);
+    font-size: 14px;
+    color: var(--text-muted);
     font-weight: 500;
-    margin-bottom: 16px;
-  }
-
-  .cmd-explanation {
-    background: var(--bg-card);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    padding: 16px;
-
-    .explanation-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--accent);
-      margin-bottom: 8px;
-    }
-
-    p {
-      font-size: 14px;
-      line-height: 1.65;
-      color: var(--text-secondary);
-    }
   }
 }
 

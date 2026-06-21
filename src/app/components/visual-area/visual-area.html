@@ -1,5 +1,4 @@
 <div class="visual-area">
-  <!-- File state viewer -->
   <div class="panel files-panel">
     <div class="panel-header">
       <span class="panel-icon">&#128193;</span>
@@ -20,7 +19,6 @@
     </div>
   </div>
 
-  <!-- Terminal output -->
   @if (showAfter && terminal.length > 0) {
     <div class="panel terminal-panel">
       <div class="panel-header terminal-header">
@@ -32,19 +30,19 @@
         <span class="panel-title">Terminal</span>
       </div>
       <div class="terminal-body">
-        @for (line of terminal; track $index) {
+        @for (line of displayedLines; track $index) {
           <div class="terminal-line"
                [class.comment]="isComment(line)"
                [class.command]="isCommand(line)"
-               [class.empty]="line === ''">
-            {{ line }}
-          </div>
+               [class.empty]="line === ''">{{ line }}</div>
+        }
+        @if (showCursor) {
+          <span class="terminal-cursor">&#9608;</span>
         }
       </div>
     </div>
   }
 
-  <!-- Git graph -->
   @if (graph && graph.nodes.length > 0) {
     <div class="panel graph-panel">
       <div class="panel-header">

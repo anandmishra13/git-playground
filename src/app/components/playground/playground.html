@@ -5,6 +5,16 @@
       <span>Home</span>
     </button>
 
+    <div class="progress-bar">
+      <div class="progress-info">
+        <span>{{ progress.exploredCount() }}/{{ progress.totalCommands }} explored</span>
+        <span>{{ progress.percentage() }}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="progress.percentage()"></div>
+      </div>
+    </div>
+
     <nav class="sidebar-nav">
       @for (cat of categories; track cat.name; let ci = $index) {
         <div class="nav-category" [class.active]="ci === categoryIndex()">
@@ -18,8 +28,13 @@
                 <button
                   class="nav-cmd"
                   [class.active]="cmi === commandIndex()"
+                  [class.explored]="progress.isExplored(ci, cmi)"
                   (click)="selectCommand(cmi)">
-                  <span class="nav-cmd-dot"></span>
+                  @if (progress.isExplored(ci, cmi)) {
+                    <span class="nav-cmd-check">&#10003;</span>
+                  } @else {
+                    <span class="nav-cmd-dot"></span>
+                  }
                   git {{ cmd.name }}
                 </button>
               }
@@ -47,16 +62,8 @@
     </div>
 
     <div class="cmd-header">
-      <div class="cmd-title-row">
-        <h1>
-          <code>{{ command().command }}</code>
-        </h1>
-      </div>
+      <code class="cmd-code">{{ command().command }}</code>
       <p class="cmd-desc">{{ command().description }}</p>
-      <div class="cmd-explanation">
-        <div class="explanation-label">What it does</div>
-        <p>{{ command().whatItDoes }}</p>
-      </div>
     </div>
 
     <div class="playground-area">
@@ -71,7 +78,7 @@
           class="run-btn primary"
           [class.active]="showAfter()"
           (click)="runCommand()">
-          Run Command &rarr;
+          &#9654; Run Command
         </button>
       </div>
 
@@ -84,5 +91,6 @@
   <app-command-panel
     [commands]="category().commands"
     [activeIndex]="commandIndex()"
+    [categoryIndex]="categoryIndex()"
     (commandSelected)="selectCommand($event)" />
 </div>

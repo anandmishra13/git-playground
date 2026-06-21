@@ -139,6 +139,7 @@
 .terminal-line {
   color: var(--text-terminal);
   white-space: pre;
+  animation: lineIn 0.15s ease-out;
 
   &.command {
     color: var(--text-terminal-green);
@@ -153,6 +154,21 @@
   &.empty {
     height: 12px;
   }
+}
+
+.terminal-cursor {
+  color: var(--text-terminal-green);
+  font-size: 12px;
+  animation: blink 0.7s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes lineIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .graph-container {

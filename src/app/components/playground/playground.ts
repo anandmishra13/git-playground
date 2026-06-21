@@ -1,9 +1,10 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { COMMAND_CATEGORIES, GitCommand, CommandCategory } from '../../data/git-commands';
+import { COMMAND_CATEGORIES } from '../../data/git-commands';
 import { VisualArea } from '../visual-area/visual-area';
 import { CommandPanel } from '../command-panel/command-panel';
 import { ThemeToggle } from '../theme-toggle/theme-toggle';
+import { ProgressService } from '../../services/progress.service';
 
 @Component({
   selector: 'app-playground',
@@ -20,7 +21,11 @@ export class Playground implements OnInit {
   category = computed(() => this.categories[this.categoryIndex()]);
   command = computed(() => this.category().commands[this.commandIndex()]);
 
-  constructor(private route: ActivatedRoute, private router: Router) {}
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    public progress: ProgressService,
+  ) {}
 
   ngOnInit() {
     this.route.params.subscribe(params => {
@@ -44,6 +49,7 @@ export class Playground implements OnInit {
 
   runCommand() {
     this.showAfter.set(true);
+    this.progress.markExplored(this.categoryIndex(), this.commandIndex());
   }
 
   resetCommand() {

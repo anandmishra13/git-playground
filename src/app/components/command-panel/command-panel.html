@@ -7,8 +7,14 @@
       <button
         class="command-item"
         [class.active]="i === activeIndex"
+        [class.explored]="progress.isExplored(categoryIndex, i)"
         (click)="select(i)">
-        <div class="cmd-name">git {{ cmd.name }}</div>
+        <div class="cmd-top">
+          <span class="cmd-name">git {{ cmd.name }}</span>
+          @if (progress.isExplored(categoryIndex, i)) {
+            <span class="cmd-check">&#10003;</span>
+          }
+        </div>
         <div class="cmd-brief">{{ cmd.description }}</div>
       </button>
     }

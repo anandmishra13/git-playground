@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { GitCommand } from '../../data/git-commands';
+import { ProgressService } from '../../services/progress.service';
 
 @Component({
   selector: 'app-command-panel',
@@ -9,7 +10,10 @@ import { GitCommand } from '../../data/git-commands';
 export class CommandPanel {
   @Input() commands: GitCommand[] = [];
   @Input() activeIndex = 0;
+  @Input() categoryIndex = 0;
   @Output() commandSelected = new EventEmitter<number>();
+
+  constructor(public progress: ProgressService) {}
 
   select(index: number) {
     this.commandSelected.emit(index);

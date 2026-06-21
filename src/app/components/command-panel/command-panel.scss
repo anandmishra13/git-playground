@@ -52,12 +52,28 @@
     }
   }
 
+  &.explored .cmd-name {
+    color: var(--green);
+  }
+
+  .cmd-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
   .cmd-name {
     font-family: var(--font-mono);
     font-size: 13px;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 4px;
+  }
+
+  .cmd-check {
+    font-size: 11px;
+    color: var(--green);
+    font-weight: 700;
   }
 
   .cmd-brief {

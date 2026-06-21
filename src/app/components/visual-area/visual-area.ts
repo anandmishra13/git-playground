@@ -1,11 +1,9 @@
-import { Component, Input, OnChanges, SimpleChanges, ElementRef, ViewChild, AfterViewChecked, OnDestroy } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, ElementRef, ViewChild, AfterViewChecked, OnDestroy, ChangeDetectorRef, inject } from '@angular/core';
 import { GitCommand, GraphState, FileState } from '../../data/git-commands';
 
 interface RenderedLine {
   text: string;
-  isCommand: boolean;
-  isComment: boolean;
-  isEmpty: boolean;
+  type: 'command' | 'output' | 'comment' | 'empty';
 }
 
 @Component({
@@ -14,6 +12,7 @@ interface RenderedLine {
   styleUrl: './visual-area.scss',
 })
 export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
+  private cdr = inject(ChangeDetectorRef);
   @Input() command!: GitCommand;
   @Input() showAfter = false;
   @ViewChild('canvas') canvasRef!: ElementRef<HTMLCanvasElement>;
@@ -23,23 +22,23 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
   terminal: string[] = [];
   renderedLines: RenderedLine[] = [];
   typing = false;
+  waiting = false;
   done = false;
   graph: GraphState | null = null;
   private needsRedraw = false;
-  private typeTimer: any = null;
+  private timers: any[] = [];
   private graphAnimId = 0;
   private graphProgress = 1;
-
   private lineIdx = 0;
   private charIdx = 0;
 
-  ngOnChanges(changes: SimpleChanges) {
+  ngOnChanges(_: SimpleChanges) {
     this.updateState();
     this.needsRedraw = true;
   }
 
   ngOnDestroy() {
-    this.stopTyping();
+    this.clearTimers();
     if (this.graphAnimId) cancelAnimationFrame(this.graphAnimId);
   }
 
@@ -50,15 +49,20 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
     }
   }
 
-  private stopTyping() {
-    if (this.typeTimer) {
-      clearTimeout(this.typeTimer);
-      this.typeTimer = null;
-    }
+  private clearTimers() {
+    this.timers.forEach(t => clearTimeout(t));
+    this.timers = [];
+  }
+
+  private later(fn: () => void, ms: number) {
+    this.timers.push(setTimeout(() => {
+      fn();
+      this.cdr.detectChanges();
+    }, ms));
   }
 
   private updateState() {
-    this.stopTyping();
+    this.clearTimers();
     if (this.graphAnimId) cancelAnimationFrame(this.graphAnimId);
 
     if (this.showAfter) {
@@ -67,15 +71,21 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
       this.renderedLines = [];
       this.lineIdx = 0;
       this.charIdx = 0;
-      this.typing = true;
+      this.typing = false;
+      this.waiting = true;
       this.done = false;
-      this.scheduleNext();
       this.graph = this.command.afterGraph || this.command.gitGraph || null;
+      this.later(() => {
+        this.waiting = false;
+        this.typing = true;
+        this.typeNext();
+      }, 1500);
     } else {
       this.files = this.command.beforeState;
       this.terminal = [];
       this.renderedLines = [];
       this.typing = false;
+      this.waiting = false;
       this.done = false;
       this.graph = this.command.gitGraph || null;
     }
@@ -83,16 +93,21 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
   }
 
   replay() {
-    this.stopTyping();
+    this.clearTimers();
     this.renderedLines = [];
     this.lineIdx = 0;
     this.charIdx = 0;
-    this.typing = true;
     this.done = false;
-    this.scheduleNext();
+    this.waiting = true;
+    this.typing = false;
+    this.later(() => {
+      this.waiting = false;
+      this.typing = true;
+      this.typeNext();
+    }, 1500);
   }
 
-  private scheduleNext() {
+  private typeNext() {
     if (this.lineIdx >= this.terminal.length) {
       this.typing = false;
       this.done = true;
@@ -100,61 +115,50 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
     }
 
     const line = this.terminal[this.lineIdx];
-    const isCmdLine = line.trimStart().startsWith('$');
+    const isCmd = line.trimStart().startsWith('$');
 
-    if (isCmdLine) {
-      const promptEnd = line.indexOf('$') + 2;
-      const prompt = line.substring(0, promptEnd);
-      const cmdPart = line.substring(promptEnd);
+    if (isCmd) {
+      const dollarIdx = line.indexOf('$');
+      const prompt = line.substring(0, dollarIdx + 2);
+      const cmd = line.substring(dollarIdx + 2);
 
       if (this.charIdx === 0) {
-        this.renderedLines.push({
-          text: prompt,
-          isCommand: true,
-          isComment: false,
-          isEmpty: false,
-        });
-        this.scrollTerminal();
-        this.typeTimer = setTimeout(() => {
-          this.charIdx = 1;
-          this.scheduleNext();
-        }, 200);
+        this.renderedLines.push({ text: prompt, type: 'command' });
+        this.scroll();
+        this.charIdx = 1;
+        this.later(() => this.typeNext(), 150);
         return;
       }
-      const current = this.renderedLines[this.renderedLines.length - 1];
-      if (this.charIdx <= cmdPart.length) {
-        current.text = prompt + cmdPart.substring(0, this.charIdx);
+
+      const pos = this.charIdx - 1;
+      if (pos < cmd.length) {
+        const current = this.renderedLines[this.renderedLines.length - 1];
+        current.text = prompt + cmd.substring(0, pos + 1);
         this.charIdx++;
-        this.scrollTerminal();
-        const delay = 25 + Math.random() * 35;
-        this.typeTimer = setTimeout(() => this.scheduleNext(), delay);
+        this.scroll();
+        this.later(() => this.typeNext(), 30 + Math.random() * 40);
       } else {
         this.lineIdx++;
         this.charIdx = 0;
-        this.typeTimer = setTimeout(() => this.scheduleNext(), 300);
+        this.later(() => this.typeNext(), 350);
       }
     } else {
-      this.renderedLines.push({
-        text: line,
-        isCommand: false,
-        isComment: line.trimStart().startsWith('#'),
-        isEmpty: line === '',
-      });
+      const type = line === '' ? 'empty' : line.trimStart().startsWith('#') ? 'comment' : 'output';
+      this.renderedLines.push({ text: line, type });
       this.lineIdx++;
       this.charIdx = 0;
-      this.scrollTerminal();
+      this.scroll();
+
       const nextLine = this.lineIdx < this.terminal.length ? this.terminal[this.lineIdx] : null;
-      const nextIsCmd = nextLine?.trimStart().startsWith('$');
-      const delay = nextIsCmd ? 400 : 40;
-      this.typeTimer = setTimeout(() => this.scheduleNext(), delay);
+      const delay = nextLine?.trimStart().startsWith('$') ? 500 : 30;
+      this.later(() => this.typeNext(), delay);
     }
   }
 
-  private scrollTerminal() {
+  private scroll() {
     setTimeout(() => {
       if (this.terminalBodyRef) {
-        const el = this.terminalBodyRef.nativeElement;
-        el.scrollTop = el.scrollHeight;
+        this.terminalBodyRef.nativeElement.scrollTop = this.terminalBodyRef.nativeElement.scrollHeight;
       }
     });
   }

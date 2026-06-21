@@ -1,10 +1,36 @@
 <div class="home">
-  <canvas #graphCanvas class="graph-canvas"></canvas>
+  <canvas #mapCanvas class="map-canvas"></canvas>
+
   <div class="top-bar">
-    <app-theme-toggle />
+    <div class="top-left">
+      <h1 class="logo"><span class="git-text">git</span> playground</h1>
+    </div>
+    <div class="top-right">
+      <app-theme-toggle />
+    </div>
   </div>
-  <div class="overlay">
-    <h1><span class="git-text">git</span> playground</h1>
-    <p class="tagline">click any command to explore</p>
+
+  <div class="legend">
+    @for (line of legendLines; track line.id) {
+      <button class="legend-item" (click)="filterLine(line.id)">
+        <span class="legend-dot" [style.background]="line.color"></span>
+        <span class="legend-name">{{ line.name }}</span>
+      </button>
+    }
   </div>
+
+  <div class="zoom-controls">
+    <button class="zoom-btn" (click)="zoomIn()">+</button>
+    <button class="zoom-btn" (click)="zoomOut()">&minus;</button>
+    <button class="zoom-btn reset" (click)="resetView()">&#8634;</button>
+  </div>
+
+  @if (hoveredStation) {
+    <div class="station-tooltip">
+      <span class="tooltip-cmd">{{ hoveredStation.command }}</span>
+      <span class="tooltip-desc">{{ hoveredStation.description }}</span>
+    </div>
+  }
+
+  <div class="hint">scroll to zoom &middot; drag to pan &middot; click a station to explore</div>
 </div>

@@ -20,6 +20,11 @@
   </div>
 
   @if (showAfter && terminal.length > 0) {
+    @if (done) {
+      <div class="replay-bar">
+        <button class="replay-btn" (click)="replay()">&#8635; Replay</button>
+      </div>
+    }
     <div class="panel terminal-panel">
       <div class="panel-header terminal-header">
         <div class="terminal-left">
@@ -30,18 +35,15 @@
           </div>
           <span class="panel-title">Terminal</span>
         </div>
-        @if (done) {
-          <button class="replay-btn" (click)="replay()">&#8635; Replay</button>
-        }
       </div>
       <div class="terminal-body" #terminalBody>
         @for (line of renderedLines; track $index) {
           <div class="terminal-line"
-               [class.command]="line.isCommand"
-               [class.comment]="line.isComment"
-               [class.empty]="line.isEmpty">{{ line.text }}</div>
+               [class.command]="line.type === 'command'"
+               [class.comment]="line.type === 'comment'"
+               [class.empty]="line.type === 'empty'">{{ line.text }}</div>
         }
-        @if (typing) {
+        @if (waiting || typing) {
           <span class="terminal-cursor">&#9608;</span>
         }
       </div>

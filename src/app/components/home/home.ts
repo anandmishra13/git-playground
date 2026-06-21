@@ -1,50 +1,9 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, NgZone } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, NgZone, ChangeDetectorRef, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { METRO_LINES, METRO_STATIONS, MetroStation, MetroLine, getLineColor } from '../../data/metro-map';
 import { COMMAND_CATEGORIES } from '../../data/git-commands';
 import { ThemeService } from '../../services/theme.service';
 import { ThemeToggle } from '../theme-toggle/theme-toggle';
-
-interface FloatingNode {
-  label: string;
-  categoryIdx: number;
-  commandIdx: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  radius: number;
-  color: string;
-  hovered: boolean;
-  scale: number;
-  targetScale: number;
-  category: string;
-}
-
-interface Edge {
-  from: number;
-  to: number;
-}
-
-interface Star {
-  x: number;
-  y: number;
-  size: number;
-  speed: number;
-  brightness: number;
-  phase: number;
-  drift: number;
-  symbol: string;
-  rotation: number;
-  rotationSpeed: number;
-}
-
-const CODE_SYMBOLS = [
-  '{', '}', '<', '>', '//', '/*', '*/', ';', '=>', '()', '[]',
-  '&&', '||', '!=', '===', '...', '$ _', '#!', 'fn', 'if',
-  'git', '>>>', '<<<', '~~~', '+++', '---', '@@',
-];
-
-const PALETTE = ['#e07a5f', '#81b29a', '#f2cc8f', '#5b8fb9', '#9b8fb4', '#e63946'];
 
 @Component({
   selector: 'app-home',
@@ -53,23 +12,39 @@ const PALETTE = ['#e07a5f', '#81b29a', '#f2cc8f', '#5b8fb9', '#9b8fb4', '#e63946
   styleUrl: './home.scss',
 })
 export class Home implements AfterViewInit, OnDestroy {
-  @ViewChild('graphCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('mapCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
 
-  categories = COMMAND_CATEGORIES;
-  nodes: FloatingNode[] = [];
-  edges: Edge[] = [];
-  stars: Star[] = [];
+  private cdr = inject(ChangeDetectorRef);
+  lines = METRO_LINES;
+  stations = METRO_STATIONS;
+  hoveredStation: MetroStation | null = null;
+  legendLines = METRO_LINES;
+
   private animId = 0;
-  private frameCount = 0;
-  private mouse = { x: -1000, y: -1000 };
   private canvas!: HTMLCanvasElement;
   private ctx!: CanvasRenderingContext2D;
   private dpr = 1;
   private w = 0;
   private h = 0;
+
+  private camera = { x: 0, y: 0, zoom: 1 };
+  private targetCamera = { x: 0, y: 0, zoom: 1 };
+  private dragging = false;
+  private dragStart = { x: 0, y: 0 };
+  private cameraStart = { x: 0, y: 0 };
+  private mouse = { x: -1000, y: -1000 };
+
+  private boundMouseDown: any;
   private boundMouseMove: any;
-  private boundClick: any;
+  private boundMouseUp: any;
+  private boundWheel: any;
   private boundResize: any;
+  private boundClick: any;
+  private boundTouchStart: any;
+  private boundTouchMove: any;
+  private boundTouchEnd: any;
+
+  private pulsePhase = 0;
 
   constructor(private router: Router, private zone: NgZone, private theme: ThemeService) {}
 
@@ -80,8 +55,7 @@ export class Home implements AfterViewInit, OnDestroy {
 
     setTimeout(() => {
       this.sizeCanvas();
-      this.buildStars();
-      this.buildGraph();
+      this.centerMap();
       this.setupEvents();
       this.zone.runOutsideAngular(() => this.tick());
     });
@@ -89,8 +63,14 @@ export class Home implements AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     cancelAnimationFrame(this.animId);
+    this.canvas.removeEventListener('mousedown', this.boundMouseDown);
     this.canvas.removeEventListener('mousemove', this.boundMouseMove);
+    window.removeEventListener('mouseup', this.boundMouseUp);
+    this.canvas.removeEventListener('wheel', this.boundWheel);
     this.canvas.removeEventListener('click', this.boundClick);
+    this.canvas.removeEventListener('touchstart', this.boundTouchStart);
+    this.canvas.removeEventListener('touchmove', this.boundTouchMove);
+    this.canvas.removeEventListener('touchend', this.boundTouchEnd);
     window.removeEventListener('resize', this.boundResize);
   }
 
@@ -103,307 +83,335 @@ export class Home implements AfterViewInit, OnDestroy {
     this.canvas.style.height = this.h + 'px';
   }
 
-  private buildStars() {
-    this.stars = [];
-    const count = Math.floor((this.w * this.h) / 4000);
-    for (let i = 0; i < count; i++) {
-      this.stars.push({
-        x: Math.random() * this.w,
-        y: Math.random() * this.h,
-        size: 0.5 + Math.random() * 2,
-        speed: 0.08 + Math.random() * 0.25,
-        brightness: Math.random(),
-        phase: Math.random() * Math.PI * 2,
-        drift: (Math.random() - 0.5) * 0.15,
-        symbol: CODE_SYMBOLS[Math.floor(Math.random() * CODE_SYMBOLS.length)],
-        rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 0.003,
-      });
+  private centerMap() {
+    if (this.stations.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const s of this.stations) {
+      minX = Math.min(minX, s.x);
+      maxX = Math.max(maxX, s.x);
+      minY = Math.min(minY, s.y);
+      maxY = Math.max(maxY, s.y);
     }
-  }
+    const mapW = maxX - minX + 200;
+    const mapH = maxY - minY + 200;
+    const zoom = Math.min(this.w / mapW, this.h / mapH, 1.2) * 0.85;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
 
-  private buildGraph() {
-    this.nodes = [];
-    this.edges = [];
-
-    const cx = this.w / 2;
-    const cy = this.h / 2;
-    const spread = Math.min(this.w, this.h) * 0.35;
-
-    this.categories.forEach((cat, ci) => {
-      const catAngle = (ci / this.categories.length) * Math.PI * 2 - Math.PI / 2;
-      const catCx = cx + Math.cos(catAngle) * spread * 0.5;
-      const catCy = cy + Math.sin(catAngle) * spread * 0.5;
-
-      cat.commands.forEach((cmd, cmi) => {
-        const jitter = 40 + Math.random() * spread * 0.6;
-        const a = Math.random() * Math.PI * 2;
-        const label = 'git ' + cmd.name;
-        this.ctx.font = "500 13px 'JetBrains Mono', monospace";
-        const textW = this.ctx.measureText(label).width;
-        this.nodes.push({
-          label,
-          categoryIdx: ci,
-          commandIdx: cmi,
-          x: catCx + Math.cos(a) * jitter,
-          y: catCy + Math.sin(a) * jitter,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: (Math.random() - 0.5) * 0.3,
-          radius: textW / 2 + 18,
-          color: PALETTE[ci % PALETTE.length],
-          hovered: false,
-          scale: 1,
-          targetScale: 1,
-          category: cat.name,
-        });
-      });
-    });
-
-    let offset = 0;
-    this.categories.forEach(cat => {
-      for (let i = 0; i < cat.commands.length; i++) {
-        for (let j = i + 1; j < cat.commands.length; j++) {
-          this.edges.push({ from: offset + i, to: offset + j });
-        }
-      }
-      offset += cat.commands.length;
-    });
-
-    for (let i = 0; i < 6; i++) {
-      const a = Math.floor(Math.random() * this.nodes.length);
-      let b = Math.floor(Math.random() * this.nodes.length);
-      while (b === a) b = Math.floor(Math.random() * this.nodes.length);
-      if (this.nodes[a].categoryIdx !== this.nodes[b].categoryIdx) {
-        this.edges.push({ from: a, to: b });
-      }
-    }
+    this.camera.x = this.w / 2 - cx * zoom;
+    this.camera.y = this.h / 2 - cy * zoom;
+    this.camera.zoom = zoom;
+    this.targetCamera = { ...this.camera };
   }
 
   private setupEvents() {
+    this.boundMouseDown = (e: MouseEvent) => {
+      this.dragging = true;
+      this.dragStart = { x: e.clientX, y: e.clientY };
+      this.cameraStart = { x: this.targetCamera.x, y: this.targetCamera.y };
+      this.canvas.style.cursor = 'grabbing';
+    };
+
     this.boundMouseMove = (e: MouseEvent) => {
       const rect = this.canvas.getBoundingClientRect();
       this.mouse.x = e.clientX - rect.left;
       this.mouse.y = e.clientY - rect.top;
 
-      let hit = false;
-      for (const n of this.nodes) {
-        const dx = this.mouse.x - n.x;
-        const dy = this.mouse.y - n.y;
-        n.hovered = Math.sqrt(dx * dx + dy * dy) < n.radius * n.scale;
-        if (n.hovered) hit = true;
-        n.targetScale = n.hovered ? 1.35 : 1;
+      if (this.dragging) {
+        this.targetCamera.x = this.cameraStart.x + (e.clientX - this.dragStart.x);
+        this.targetCamera.y = this.cameraStart.y + (e.clientY - this.dragStart.y);
+      } else {
+        const worldPos = this.screenToWorld(this.mouse.x, this.mouse.y);
+        const prev = this.hoveredStation;
+        this.hoveredStation = this.findStation(worldPos.x, worldPos.y);
+        this.canvas.style.cursor = this.hoveredStation ? 'pointer' : 'grab';
+        if (prev !== this.hoveredStation) {
+          this.zone.run(() => this.cdr.detectChanges());
+        }
       }
-      this.canvas.style.cursor = hit ? 'pointer' : 'default';
     };
 
-    this.boundClick = () => {
-      const node = this.nodes.find(n => n.hovered);
-      if (node) {
-        this.zone.run(() => {
-          this.router.navigate(['/playground', node.categoryIdx, node.commandIdx]);
-        });
+    this.boundMouseUp = () => {
+      this.dragging = false;
+      this.canvas.style.cursor = this.hoveredStation ? 'pointer' : 'grab';
+    };
+
+    this.boundClick = (e: MouseEvent) => {
+      const dx = Math.abs(e.clientX - this.dragStart.x);
+      const dy = Math.abs(e.clientY - this.dragStart.y);
+      if (dx > 5 || dy > 5) return;
+
+      if (this.hoveredStation) {
+        this.navigateToStation(this.hoveredStation);
       }
+    };
+
+    this.boundWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = this.canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const oldZoom = this.targetCamera.zoom;
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.3, Math.min(3, oldZoom * factor));
+
+      this.targetCamera.x = mx - (mx - this.targetCamera.x) * (newZoom / oldZoom);
+      this.targetCamera.y = my - (my - this.targetCamera.y) * (newZoom / oldZoom);
+      this.targetCamera.zoom = newZoom;
+    };
+
+    this.boundTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        this.dragging = true;
+        this.dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        this.cameraStart = { x: this.targetCamera.x, y: this.targetCamera.y };
+      }
+    };
+
+    this.boundTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (this.dragging && e.touches.length === 1) {
+        this.targetCamera.x = this.cameraStart.x + (e.touches[0].clientX - this.dragStart.x);
+        this.targetCamera.y = this.cameraStart.y + (e.touches[0].clientY - this.dragStart.y);
+      }
+    };
+
+    this.boundTouchEnd = () => {
+      this.dragging = false;
     };
 
     this.boundResize = () => {
       this.sizeCanvas();
+      this.centerMap();
     };
 
+    this.canvas.addEventListener('mousedown', this.boundMouseDown);
     this.canvas.addEventListener('mousemove', this.boundMouseMove);
+    window.addEventListener('mouseup', this.boundMouseUp);
+    this.canvas.addEventListener('wheel', this.boundWheel, { passive: false });
     this.canvas.addEventListener('click', this.boundClick);
+    this.canvas.addEventListener('touchstart', this.boundTouchStart, { passive: true });
+    this.canvas.addEventListener('touchmove', this.boundTouchMove, { passive: false });
+    this.canvas.addEventListener('touchend', this.boundTouchEnd);
     window.addEventListener('resize', this.boundResize);
   }
 
+  private screenToWorld(sx: number, sy: number) {
+    return {
+      x: (sx - this.camera.x) / this.camera.zoom,
+      y: (sy - this.camera.y) / this.camera.zoom,
+    };
+  }
+
+  private findStation(wx: number, wy: number): MetroStation | null {
+    const hitRadius = 20 / this.camera.zoom;
+    for (const s of this.stations) {
+      const dx = wx - s.x;
+      const dy = wy - s.y;
+      const r = s.major ? hitRadius * 1.5 : hitRadius;
+      if (dx * dx + dy * dy < r * r) return s;
+    }
+    return null;
+  }
+
+  private navigateToStation(station: MetroStation) {
+    const catIdx = this.findCommandInCategories(station.id);
+    if (catIdx) {
+      this.zone.run(() => {
+        this.router.navigate(['/playground', catIdx.cat, catIdx.cmd]);
+      });
+    } else {
+      this.targetCamera.zoom = Math.min(2, this.targetCamera.zoom * 1.5);
+      const screenX = station.x * this.targetCamera.zoom;
+      const screenY = station.y * this.targetCamera.zoom;
+      this.targetCamera.x = this.w / 2 - screenX;
+      this.targetCamera.y = this.h / 2 - screenY;
+    }
+  }
+
+  private findCommandInCategories(stationId: string): { cat: number; cmd: number } | null {
+    const nameMap: Record<string, string> = {
+      'init': 'init', 'clone': 'clone', 'config-user': 'config',
+      'status': 'status & diff', 'add': 'add & commit', 'commit': 'add & commit',
+      'push': 'push', 'pull': 'pull', 'merge': 'merge',
+      'merge-conflicts': 'merge conflicts', 'branch': 'branch & switch',
+      'switch': 'branch & switch', 'switch-create': 'branch & switch',
+      'commit-amend': 'amend', 'rebase': 'rebase',
+      'rebase-interactive': 'interactive rebase', 'reset-soft': 'reset',
+      'reset-mixed': 'reset', 'reset-hard': 'reset',
+      'revert': 'revert', 'reflog': 'reflog', 'stash': 'stash',
+      'bisect': 'bisect', 'cherry-pick': 'cherry-pick', 'blame': 'blame',
+      'remote-add': 'remote', 'log-graph': 'log (power mode)',
+      'tag': 'tag', 'worktree-add': 'worktree', 'clean': 'clean',
+      'gitignore': '.gitignore',
+    };
+
+    const cmdName = nameMap[stationId];
+    if (!cmdName) return null;
+
+    for (let ci = 0; ci < COMMAND_CATEGORIES.length; ci++) {
+      for (let cmi = 0; cmi < COMMAND_CATEGORIES[ci].commands.length; cmi++) {
+        if (COMMAND_CATEGORIES[ci].commands[cmi].name === cmdName) {
+          return { cat: ci, cmd: cmi };
+        }
+      }
+    }
+    return null;
+  }
+
   private tick() {
-    this.frameCount++;
-    this.physics();
+    this.pulsePhase += 0.03;
+    this.camera.x += (this.targetCamera.x - this.camera.x) * 0.12;
+    this.camera.y += (this.targetCamera.y - this.camera.y) * 0.12;
+    this.camera.zoom += (this.targetCamera.zoom - this.camera.zoom) * 0.12;
     this.draw();
     this.animId = requestAnimationFrame(() => this.tick());
   }
 
-  private physics() {
-    const pad = 50;
-
-    for (let i = 0; i < this.nodes.length; i++) {
-      for (let j = i + 1; j < this.nodes.length; j++) {
-        const a = this.nodes[i];
-        const b = this.nodes[j];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const minDist = (a.radius + b.radius) * 1.4;
-
-        if (dist < minDist) {
-          const f = (minDist - dist) * 0.004;
-          const fx = (dx / dist) * f;
-          const fy = (dy / dist) * f;
-          a.vx -= fx; a.vy -= fy;
-          b.vx += fx; b.vy += fy;
-        }
-      }
-    }
-
-    for (const e of this.edges) {
-      const a = this.nodes[e.from];
-      const b = this.nodes[e.to];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const target = 160;
-      const f = (dist - target) * 0.0004;
-      const fx = (dx / dist) * f;
-      const fy = (dy / dist) * f;
-      a.vx += fx; a.vy += fy;
-      b.vx -= fx; b.vy -= fy;
-    }
-
-    const cx = this.w / 2;
-    const cy = this.h / 2;
-
-    for (const n of this.nodes) {
-      n.vx += (cx - n.x) * 0.0001;
-      n.vy += (cy - n.y) * 0.0001;
-
-      if (this.mouse.x > 0) {
-        const dx = n.x - this.mouse.x;
-        const dy = n.y - this.mouse.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 100 && dist > 1 && !n.hovered) {
-          const f = (100 - dist) * 0.001;
-          n.vx += (dx / dist) * f;
-          n.vy += (dy / dist) * f;
-        }
-      }
-
-      n.vx *= 0.96;
-      n.vy *= 0.96;
-      n.x += n.vx;
-      n.y += n.vy;
-      n.scale += (n.targetScale - n.scale) * 0.18;
-
-      if (n.x - n.radius < pad) { n.x = pad + n.radius; n.vx *= -0.4; }
-      if (n.x + n.radius > this.w - pad) { n.x = this.w - pad - n.radius; n.vx *= -0.4; }
-      if (n.y - 18 < pad) { n.y = pad + 18; n.vy *= -0.4; }
-      if (n.y + 18 > this.h - pad) { n.y = this.h - pad - 18; n.vy *= -0.4; }
-    }
-  }
-
   private draw() {
     const ctx = this.ctx;
+    const z = this.camera.zoom;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
 
+    ctx.save();
+    ctx.translate(this.camera.x, this.camera.y);
+    ctx.scale(z, z);
+
+    this.drawLines(ctx, z);
+    this.drawStations(ctx, z);
+
+    ctx.restore();
+  }
+
+  private drawLines(ctx: CanvasRenderingContext2D, z: number) {
+    for (const line of this.lines) {
+      const stationObjs = line.stations
+        .map(sid => this.stations.find(s => s.id === sid))
+        .filter(Boolean) as MetroStation[];
+
+      if (stationObjs.length < 2) continue;
+
+      ctx.beginPath();
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 5 / z;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      const points = stationObjs.map(s => ({ x: s.x, y: s.y }));
+      ctx.moveTo(points[0].x, points[0].y);
+
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        const midX = (prev.x + curr.x) / 2;
+        const midY = (prev.y + curr.y) / 2;
+
+        if (Math.abs(curr.y - prev.y) > 20) {
+          ctx.lineTo(midX, prev.y);
+          ctx.lineTo(midX, curr.y);
+          ctx.lineTo(curr.x, curr.y);
+        } else {
+          ctx.lineTo(curr.x, curr.y);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+
+  private drawStations(ctx: CanvasRenderingContext2D, z: number) {
     const isDark = this.theme.isDark();
-    const t = this.frameCount * 0.02;
-    for (const s of this.stars) {
-      const twinkle = 0.3 + 0.7 * ((Math.sin(t * s.speed * 3 + s.phase) + 1) / 2);
-      s.y -= s.speed;
-      s.x += s.drift;
-      s.rotation += s.rotationSpeed;
-      if (s.y < -20) { s.y = this.h + 20; s.x = Math.random() * this.w; }
-      if (s.x < -20) s.x = this.w + 20;
-      if (s.x > this.w + 20) s.x = -20;
+    const bgColor = isDark ? '#242434' : '#fff8f0';
+    const textColor = isDark ? '#e2ddd5' : '#3d2c1e';
+    const mutedColor = isDark ? '#6e665c' : '#9a8572';
 
-      let tooClose = false;
-      const clearance = isDark ? 0 : 60;
-      if (clearance > 0) {
-        for (const n of this.nodes) {
-          const dx = s.x - n.x;
-          const dy = s.y - n.y;
-          if (dx * dx + dy * dy < (n.radius + clearance) * (n.radius + clearance)) {
-            tooClose = true;
-            break;
-          }
-        }
-      }
+    for (const station of this.stations) {
+      const isHovered = this.hoveredStation === station;
+      const lineColor = getLineColor(station.lineIds[0]);
+      const r = station.major ? 8 : 5;
+      const pulse = station.major ? Math.sin(this.pulsePhase + station.x * 0.01) * 0.15 + 1 : 1;
 
-      if (isDark) {
-        const alpha = 0.6 * twinkle;
+      if (isHovered) {
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha + ')';
+        ctx.arc(station.x, station.y, (r + 8) * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = lineColor + '22';
         ctx.fill();
-        if (s.size > 1.3 && twinkle > 0.7) {
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, s.size * 2.5, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.15) + ')';
-          ctx.fill();
-        }
-      } else if (!tooClose) {
-        const alpha = 0.08 + 0.07 * twinkle;
-        const fontSize = 10 + s.size * 4;
-        ctx.save();
-        ctx.translate(s.x, s.y);
-        ctx.rotate(s.rotation);
-        ctx.font = '500 ' + fontSize + "px 'JetBrains Mono', monospace";
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(80, 60, 40, ' + alpha + ')';
-        ctx.fillText(s.symbol, 0, 0);
-        ctx.restore();
       }
-    }
-
-    for (const e of this.edges) {
-      const a = this.nodes[e.from];
-      const b = this.nodes[e.to];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const alpha = Math.max(0.03, Math.min(0.15, 1 - dist / 400));
 
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = 'rgba(180, 160, 140, ' + alpha + ')';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    for (const n of this.nodes) {
-      const s = n.scale;
-      const r = n.radius * s;
-      const pillH = 38 * s;
-      const fontSize = 13 * s;
-
-      ctx.save();
-      ctx.translate(n.x, n.y);
-
-      ctx.beginPath();
-      ctx.roundRect(-r, -pillH / 2, r * 2, pillH, pillH / 2);
-
-      const pillBg = getComputedStyle(document.documentElement).getPropertyValue('--pill-bg').trim();
-      if (n.hovered) {
-        ctx.shadowColor = n.color + '88';
-        ctx.shadowBlur = 28 * s;
-        ctx.shadowOffsetY = 4;
-        ctx.fillStyle = n.color;
-      } else {
-        ctx.fillStyle = pillBg || '#fff8f0';
-      }
+      ctx.arc(station.x, station.y, r * pulse + 2, 0, Math.PI * 2);
+      ctx.fillStyle = bgColor;
       ctx.fill();
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-
-      ctx.strokeStyle = n.hovered ? n.color : n.color + '66';
-      ctx.lineWidth = n.hovered ? 2.5 : 1.5;
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = (station.major ? 3 : 2) / z;
       ctx.stroke();
 
-      ctx.fillStyle = n.hovered ? '#fff' : n.color;
-      ctx.font = (n.hovered ? '700 ' : '500 ') + fontSize + "px 'JetBrains Mono', monospace";
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(n.label, 0, 0);
+      ctx.beginPath();
+      ctx.arc(station.x, station.y, (r - 2) * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = isHovered ? lineColor : (station.major ? lineColor : lineColor + '88');
+      ctx.fill();
 
-      if (n.hovered) {
-        const mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
-        ctx.fillStyle = mutedColor || '#9a8572';
-        ctx.font = '500 ' + (10 * s) + "px 'Inter', sans-serif";
-        ctx.fillText(n.category, 0, pillH / 2 + 16 * s);
+      if (station.lineIds.length > 1) {
+        ctx.beginPath();
+        ctx.arc(station.x, station.y, r + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = isDark ? '#ffffff44' : '#00000022';
+        ctx.lineWidth = 2 / z;
+        ctx.setLineDash([3 / z, 3 / z]);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
 
-      ctx.restore();
+      const showLabel = z > 0.5 || station.major;
+      if (showLabel) {
+        const fontSize = Math.max(9, Math.min(12, 11 / z));
+        ctx.font = (station.major ? '600 ' : '400 ') + fontSize + "px 'JetBrains Mono', monospace";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = isHovered ? lineColor : (station.major ? textColor : mutedColor);
+        ctx.fillText(station.name, station.x, station.y + r + 8);
+      }
+
+      if (isHovered && z > 0.4) {
+        ctx.font = "10px 'Inter', sans-serif";
+        ctx.fillStyle = mutedColor;
+        ctx.fillText(station.description, station.x, station.y + r + 24);
+      }
     }
+  }
+
+  zoomIn() {
+    this.targetCamera.zoom = Math.min(3, this.targetCamera.zoom * 1.3);
+  }
+
+  zoomOut() {
+    this.targetCamera.zoom = Math.max(0.3, this.targetCamera.zoom * 0.7);
+  }
+
+  resetView() {
+    this.centerMap();
+  }
+
+  filterLine(lineId: string) {
+    const lineStations = this.stations.filter(s => s.lineIds.includes(lineId));
+    if (lineStations.length === 0) return;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const s of lineStations) {
+      minX = Math.min(minX, s.x);
+      maxX = Math.max(maxX, s.x);
+      minY = Math.min(minY, s.y);
+      maxY = Math.max(maxY, s.y);
+    }
+
+    const mapW = maxX - minX + 300;
+    const mapH = maxY - minY + 200;
+    const zoom = Math.min(this.w / mapW, this.h / mapH) * 0.85;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    this.targetCamera.x = this.w / 2 - cx * zoom;
+    this.targetCamera.y = this.h / 2 - cy * zoom;
+    this.targetCamera.zoom = zoom;
   }
 }

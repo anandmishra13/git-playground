@@ -25,6 +25,16 @@ interface Edge {
   to: number;
 }
 
+interface Star {
+  x: number;
+  y: number;
+  size: number;
+  speed: number;
+  brightness: number;
+  phase: number;
+  drift: number;
+}
+
 const PALETTE = ['#e07a5f', '#81b29a', '#f2cc8f', '#5b8fb9', '#9b8fb4', '#e63946'];
 
 @Component({
@@ -39,7 +49,9 @@ export class Home implements AfterViewInit, OnDestroy {
   categories = COMMAND_CATEGORIES;
   nodes: FloatingNode[] = [];
   edges: Edge[] = [];
+  stars: Star[] = [];
   private animId = 0;
+  private frameCount = 0;
   private mouse = { x: -1000, y: -1000 };
   private canvas!: HTMLCanvasElement;
   private ctx!: CanvasRenderingContext2D;
@@ -59,6 +71,7 @@ export class Home implements AfterViewInit, OnDestroy {
 
     setTimeout(() => {
       this.sizeCanvas();
+      this.buildStars();
       this.buildGraph();
       this.setupEvents();
       this.zone.runOutsideAngular(() => this.tick());
@@ -79,6 +92,22 @@ export class Home implements AfterViewInit, OnDestroy {
     this.canvas.height = this.h * this.dpr;
     this.canvas.style.width = this.w + 'px';
     this.canvas.style.height = this.h + 'px';
+  }
+
+  private buildStars() {
+    this.stars = [];
+    const count = Math.floor((this.w * this.h) / 4000);
+    for (let i = 0; i < count; i++) {
+      this.stars.push({
+        x: Math.random() * this.w,
+        y: Math.random() * this.h,
+        size: 0.5 + Math.random() * 2,
+        speed: 0.08 + Math.random() * 0.25,
+        brightness: Math.random(),
+        phase: Math.random() * Math.PI * 2,
+        drift: (Math.random() - 0.5) * 0.15,
+      });
+    }
   }
 
   private buildGraph() {
@@ -174,6 +203,7 @@ export class Home implements AfterViewInit, OnDestroy {
   }
 
   private tick() {
+    this.frameCount++;
     this.physics();
     this.draw();
     this.animId = requestAnimationFrame(() => this.tick());
@@ -250,6 +280,29 @@ export class Home implements AfterViewInit, OnDestroy {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
+
+    const isDark = this.theme.isDark();
+    const t = this.frameCount * 0.02;
+    for (const s of this.stars) {
+      const twinkle = 0.3 + 0.7 * ((Math.sin(t * s.speed * 3 + s.phase) + 1) / 2);
+      const alpha = (isDark ? 0.6 : 0.18) * twinkle;
+      s.y -= s.speed;
+      s.x += s.drift;
+      if (s.y < -5) { s.y = this.h + 5; s.x = Math.random() * this.w; }
+      if (s.x < -5) s.x = this.w + 5;
+      if (s.x > this.w + 5) s.x = -5;
+      const starColor = isDark ? '255, 255, 255' : '120, 100, 80';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + starColor + ', ' + alpha + ')';
+      ctx.fill();
+      if (s.size > 1.3 && twinkle > 0.7) {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + starColor + ', ' + (alpha * 0.15) + ')';
+        ctx.fill();
+      }
+    }
 
     for (const e of this.edges) {
       const a = this.nodes[e.from];

@@ -103,17 +103,27 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
     const isCmdLine = line.trimStart().startsWith('$');
 
     if (isCmdLine) {
+      const promptEnd = line.indexOf('$') + 2;
+      const prompt = line.substring(0, promptEnd);
+      const cmdPart = line.substring(promptEnd);
+
       if (this.charIdx === 0) {
         this.renderedLines.push({
-          text: '',
+          text: prompt,
           isCommand: true,
           isComment: false,
           isEmpty: false,
         });
+        this.scrollTerminal();
+        this.typeTimer = setTimeout(() => {
+          this.charIdx = 1;
+          this.scheduleNext();
+        }, 200);
+        return;
       }
       const current = this.renderedLines[this.renderedLines.length - 1];
-      if (this.charIdx < line.length) {
-        current.text = line.substring(0, this.charIdx + 1);
+      if (this.charIdx <= cmdPart.length) {
+        current.text = prompt + cmdPart.substring(0, this.charIdx);
         this.charIdx++;
         this.scrollTerminal();
         const delay = 25 + Math.random() * 35;

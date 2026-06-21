@@ -1,0 +1,64 @@
+<div class="world-view" [style.--world-color]="world().color">
+
+  <header class="topbar">
+    <button class="back-btn" (click)="goBack()">
+      <span class="back-arrow">←</span>
+      <span>Back</span>
+    </button>
+    <div class="topbar-center">
+      <span class="world-badge">World {{ world().id }}</span>
+    </div>
+    <div class="topbar-right">
+      <div class="stat-chip xp">{{ xp.xp() }} XP</div>
+      <app-theme-toggle />
+    </div>
+  </header>
+
+  <section class="world-hero">
+    <span class="hero-emoji">{{ world().emoji }}</span>
+    <h1 class="hero-title">{{ world().name }}</h1>
+    <p class="hero-tagline">{{ world().tagline }}</p>
+    <div class="hero-progress">
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="progressPercent()"></div>
+      </div>
+      <span class="progress-text">{{ progress().done }}/{{ progress().total }} commands explored</span>
+    </div>
+  </section>
+
+  <main class="level-path">
+    @for (level of world().levels; track level.name; let li = $index) {
+      <div class="level-section">
+        <div class="level-marker">
+          <div class="marker-dot" [style.background]="world().color">
+            <span class="marker-num">{{ li + 1 }}</span>
+          </div>
+          <div class="marker-info">
+            <h3 class="marker-title">{{ level.name }}</h3>
+            <p class="marker-desc">{{ level.description }}</p>
+          </div>
+        </div>
+
+        <div class="command-nodes">
+          @for (cmd of level.commands; track cmd; let ci = $index) {
+            <div class="node-wrapper" [style.margin-left.px]="getNodeOffset(li * 4 + ci)">
+              <button class="command-node" [class]="getNodeClass(cmd)" (click)="openCommand(cmd)">
+                <span class="node-icon">{{ getNodeIcon(cmd) }}</span>
+                <span class="node-label">git {{ cmd }}</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (li < world().levels.length - 1) {
+        <div class="path-connector">
+          <svg width="40" height="48" viewBox="0 0 40 48">
+            <path d="M20 0 Q20 24 20 48" stroke="var(--world-color)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.4"/>
+          </svg>
+        </div>
+      }
+    }
+  </main>
+
+</div>

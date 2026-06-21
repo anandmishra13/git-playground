@@ -1,36 +1,146 @@
-<div class="home">
-  <canvas #mapCanvas class="map-canvas"></canvas>
+<div class="home" (keydown)="handleKeydown($event)" tabindex="0">
 
-  <div class="top-bar">
-    <div class="top-left">
-      <h1 class="logo"><span class="git-text">git</span> playground</h1>
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1 class="logo"><span class="logo-git">git</span> playground</h1>
     </div>
-    <div class="top-right">
+    <div class="topbar-center">
+      <button class="search-trigger" (click)="openSearch()">
+        <span class="search-icon">⌘K</span>
+        <span class="search-placeholder">Search commands...</span>
+      </button>
+    </div>
+    <div class="topbar-right">
+      <div class="stat-chip streak" [class.active]="xp.streak() > 0">
+        <span class="stat-icon">🔥</span>
+        <span class="stat-value">{{ xp.streak() }}</span>
+      </div>
+      <div class="stat-chip xp">
+        <span class="stat-value">{{ xp.xp() }} XP</span>
+      </div>
       <app-theme-toggle />
     </div>
+  </header>
+
+  <div class="hero">
+    <div class="hero-level">
+      <span class="level-badge">Lvl {{ xp.level() }}</span>
+      <span class="level-title">{{ xp.title() }}</span>
+      <div class="level-bar">
+        <div class="level-fill" [style.width.%]="xp.levelProgress() * 100"></div>
+      </div>
+      <span class="level-xp">{{ xp.xp() }} / {{ xp.nextLevelXp() }} XP</span>
+    </div>
+    <p class="hero-subtitle">{{ xp.masteredCount() }} commands explored</p>
   </div>
 
-  <div class="legend">
-    @for (line of legendLines; track line.id) {
-      <button class="legend-item" (click)="filterLine(line.id)">
-        <span class="legend-dot" [style.background]="line.color"></span>
-        <span class="legend-name">{{ line.name }}</span>
-      </button>
+  <main class="worlds">
+    @for (world of worlds; track world.id) {
+      <div class="world-card"
+           [class.expanded]="expandedWorldId === world.id"
+           [class.locked]="!isUnlocked(world.id)"
+           [class.completed]="isCompleted(world.id)"
+           [style.--world-color]="world.color">
+
+        <button class="world-header" (click)="isUnlocked(world.id) ? toggleWorld(world.id) : null">
+          <div class="world-left">
+            <span class="world-emoji">{{ world.emoji }}</span>
+            <div class="world-info">
+              <span class="world-label">World {{ world.id }}</span>
+              <span class="world-name">{{ world.name }}</span>
+            </div>
+          </div>
+          <div class="world-right">
+            @if (!isUnlocked(world.id)) {
+              <span class="lock-icon">🔒</span>
+            } @else {
+              <div class="progress-ring">
+                <svg viewBox="0 0 36 36" class="ring-svg">
+                  <path class="ring-bg"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path class="ring-fill"
+                    [style.stroke]="world.color"
+                    [attr.stroke-dasharray]="progressPercent(world.id) + ', 100'"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+                <span class="ring-text">{{ progressPercent(world.id) }}%</span>
+              </div>
+              <span class="expand-arrow">{{ expandedWorldId === world.id ? '▾' : '▸' }}</span>
+            }
+          </div>
+        </button>
+
+        @if (!isUnlocked(world.id)) {
+          <div class="world-locked-msg">
+            Complete World {{ world.unlockAfter }} to unlock
+          </div>
+        }
+
+        @if (expandedWorldId === world.id && isUnlocked(world.id)) {
+          <div class="world-body">
+            <p class="world-tagline">{{ world.tagline }}</p>
+            <div class="levels">
+              @for (level of world.levels; track level.name; let li = $index) {
+                <div class="level">
+                  <div class="level-header">
+                    <span class="level-dot" [style.background]="world.color"></span>
+                    <div class="level-info">
+                      <span class="level-name">{{ level.name }}</span>
+                      <span class="level-desc">{{ level.description }}</span>
+                    </div>
+                  </div>
+                  <div class="level-commands">
+                    @for (cmd of level.commands; track cmd) {
+                      <button class="cmd-node" [class]="getCommandClass(cmd)"
+                              (click)="navigateToWorld(world)">
+                        <span class="cmd-icon">{{ getCommandIcon(cmd) }}</span>
+                        <span class="cmd-label">{{ cmd }}</span>
+                      </button>
+                    }
+                  </div>
+                </div>
+                @if (li < world.levels.length - 1) {
+                  <div class="level-connector">
+                    <div class="connector-line" [style.background]="world.color + '33'"></div>
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        }
+      </div>
     }
-  </div>
+  </main>
 
-  <div class="zoom-controls">
-    <button class="zoom-btn" (click)="zoomIn()">+</button>
-    <button class="zoom-btn" (click)="zoomOut()">&minus;</button>
-    <button class="zoom-btn reset" (click)="resetView()">&#8634;</button>
-  </div>
+  <footer class="bottom-bar">
+    <span class="bottom-stat">{{ xp.masteredCount() }} explored</span>
+    <span class="bottom-dot">·</span>
+    <span class="bottom-stat">Level {{ xp.level() }}</span>
+    <span class="bottom-dot">·</span>
+    <span class="bottom-stat">{{ xp.xp() }} XP</span>
+  </footer>
 
-  @if (hoveredStation) {
-    <div class="station-tooltip">
-      <span class="tooltip-cmd">{{ hoveredStation.command }}</span>
-      <span class="tooltip-desc">{{ hoveredStation.description }}</span>
+  @if (searchOpen) {
+    <div class="search-overlay" (click)="closeSearch()">
+      <div class="search-modal" (click)="$event.stopPropagation()">
+        <input class="search-input"
+               type="text"
+               placeholder="Search any git command..."
+               [value]="searchQuery"
+               (input)="onSearch($any($event.target).value)"
+               (keydown.escape)="closeSearch()" />
+        <div class="search-results">
+          @if (searchResults.length === 0 && searchQuery) {
+            <div class="search-empty">No commands found</div>
+          }
+          @for (result of searchResults; track result.command) {
+            <button class="search-result" (click)="onSearchSelect(result)">
+              <span class="result-cmd">{{ result.command }}</span>
+              <span class="result-world">World {{ result.worldId }}</span>
+            </button>
+          }
+        </div>
+      </div>
     </div>
   }
-
-  <div class="hint">scroll to zoom &middot; drag to pan &middot; click a station to explore</div>
 </div>

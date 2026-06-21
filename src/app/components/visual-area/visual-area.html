@@ -29,14 +29,14 @@
         </div>
         <span class="panel-title">Terminal</span>
       </div>
-      <div class="terminal-body">
-        @for (line of displayedLines; track $index) {
+      <div class="terminal-body" #terminalBody>
+        @for (line of renderedLines; track $index) {
           <div class="terminal-line"
-               [class.comment]="isComment(line)"
-               [class.command]="isCommand(line)"
-               [class.empty]="line === ''">{{ line }}</div>
+               [class.command]="line.isCommand"
+               [class.comment]="line.isComment"
+               [class.empty]="line.isEmpty">{{ line.text }}</div>
         }
-        @if (showCursor) {
+        @if (typing) {
           <span class="terminal-cursor">&#9608;</span>
         }
       </div>

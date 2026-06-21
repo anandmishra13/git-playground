@@ -1,6 +1,13 @@
 import { Component, Input, OnChanges, SimpleChanges, ElementRef, ViewChild, AfterViewChecked, OnDestroy } from '@angular/core';
 import { GitCommand, GraphState, FileState } from '../../data/git-commands';
 
+interface RenderedLine {
+  text: string;
+  isCommand: boolean;
+  isComment: boolean;
+  isEmpty: boolean;
+}
+
 @Component({
   selector: 'app-visual-area',
   templateUrl: './visual-area.html',
@@ -10,15 +17,20 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
   @Input() command!: GitCommand;
   @Input() showAfter = false;
   @ViewChild('canvas') canvasRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('terminalBody') terminalBodyRef!: ElementRef<HTMLDivElement>;
 
   files: FileState[] = [];
   terminal: string[] = [];
-  visibleLines = 0;
+  renderedLines: RenderedLine[] = [];
+  typing = false;
   graph: GraphState | null = null;
   private needsRedraw = false;
   private typeTimer: any = null;
   private graphAnimId = 0;
   private graphProgress = 1;
+
+  private lineIdx = 0;
+  private charIdx = 0;
 
   ngOnChanges(changes: SimpleChanges) {
     this.updateState();
@@ -26,7 +38,7 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.typeTimer) clearInterval(this.typeTimer);
+    this.stopTyping();
     if (this.graphAnimId) cancelAnimationFrame(this.graphAnimId);
   }
 
@@ -37,41 +49,90 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
     }
   }
 
+  private stopTyping() {
+    if (this.typeTimer) {
+      clearTimeout(this.typeTimer);
+      this.typeTimer = null;
+    }
+  }
+
   private updateState() {
-    if (this.typeTimer) clearInterval(this.typeTimer);
+    this.stopTyping();
     if (this.graphAnimId) cancelAnimationFrame(this.graphAnimId);
 
     if (this.showAfter) {
       this.files = this.command.afterState;
       this.terminal = this.command.terminalOutput;
-      this.visibleLines = 0;
-      this.startTyping();
+      this.renderedLines = [];
+      this.lineIdx = 0;
+      this.charIdx = 0;
+      this.typing = true;
+      this.scheduleNext();
       this.graph = this.command.afterGraph || this.command.gitGraph || null;
     } else {
       this.files = this.command.beforeState;
       this.terminal = [];
-      this.visibleLines = 0;
+      this.renderedLines = [];
+      this.typing = false;
       this.graph = this.command.gitGraph || null;
     }
     this.graphProgress = 0;
   }
 
-  private startTyping() {
-    if (!this.terminal.length) return;
-    let i = 0;
-    this.typeTimer = setInterval(() => {
-      i++;
-      this.visibleLines = i;
-      if (i >= this.terminal.length) clearInterval(this.typeTimer);
-    }, 65);
+  private scheduleNext() {
+    if (this.lineIdx >= this.terminal.length) {
+      this.typing = false;
+      return;
+    }
+
+    const line = this.terminal[this.lineIdx];
+    const isCmdLine = line.trimStart().startsWith('$');
+
+    if (isCmdLine) {
+      if (this.charIdx === 0) {
+        this.renderedLines.push({
+          text: '',
+          isCommand: true,
+          isComment: false,
+          isEmpty: false,
+        });
+      }
+      const current = this.renderedLines[this.renderedLines.length - 1];
+      if (this.charIdx < line.length) {
+        current.text = line.substring(0, this.charIdx + 1);
+        this.charIdx++;
+        this.scrollTerminal();
+        const delay = 25 + Math.random() * 35;
+        this.typeTimer = setTimeout(() => this.scheduleNext(), delay);
+      } else {
+        this.lineIdx++;
+        this.charIdx = 0;
+        this.typeTimer = setTimeout(() => this.scheduleNext(), 300);
+      }
+    } else {
+      this.renderedLines.push({
+        text: line,
+        isCommand: false,
+        isComment: line.trimStart().startsWith('#'),
+        isEmpty: line === '',
+      });
+      this.lineIdx++;
+      this.charIdx = 0;
+      this.scrollTerminal();
+      const nextLine = this.lineIdx < this.terminal.length ? this.terminal[this.lineIdx] : null;
+      const nextIsCmd = nextLine?.trimStart().startsWith('$');
+      const delay = nextIsCmd ? 400 : 40;
+      this.typeTimer = setTimeout(() => this.scheduleNext(), delay);
+    }
   }
 
-  get displayedLines(): string[] {
-    return this.terminal.slice(0, this.visibleLines);
-  }
-
-  get showCursor(): boolean {
-    return this.showAfter && this.visibleLines < this.terminal.length;
+  private scrollTerminal() {
+    setTimeout(() => {
+      if (this.terminalBodyRef) {
+        const el = this.terminalBodyRef.nativeElement;
+        el.scrollTop = el.scrollHeight;
+      }
+    });
   }
 
   getStatusClass(status?: string): string {
@@ -84,14 +145,6 @@ export class VisualArea implements OnChanges, AfterViewChecked, OnDestroy {
       renamed: 'R', staged: 'S', untracked: '?',
     };
     return labels[status || ''] || '';
-  }
-
-  isComment(line: string): boolean {
-    return line.trimStart().startsWith('#');
-  }
-
-  isCommand(line: string): boolean {
-    return line.trimStart().startsWith('$');
   }
 
   private animateGraph() {
